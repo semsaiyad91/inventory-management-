@@ -3,11 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Receipt, Printer, ArrowLeft, ShoppingCart } from 'lucide-react';
 
+const inputClass =
+  "w-full rounded-xl border border-stone-700 bg-stone-950/60 px-4 py-3 font-medium text-stone-100 placeholder:text-stone-500 focus:border-amber-400/60 focus:outline-none focus:ring-2 focus:ring-amber-400/30";
+
 export default function BillingPage() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [customerName, setCustomerName] = useState('');
-  
+
   // Form States
   const [selectedProductId, setSelectedProductId] = useState('');
   const [sellCartons, setSellCartons] = useState('');
@@ -18,7 +21,11 @@ export default function BillingPage() {
   useEffect(() => {
     const savedProducts = localStorage.getItem('stock_management_products');
     if (savedProducts) {
-      setProducts(JSON.parse(savedProducts));
+      try {
+        setProducts(JSON.parse(savedProducts));
+      } catch (e) {
+        console.error("Error parsing products", e);
+      }
     }
   }, []);
 
@@ -32,7 +39,7 @@ export default function BillingPage() {
     if (!product) return;
 
     const qty = parseInt(sellCartons);
-    
+
     // Check stock
     if (qty > product.cartons) {
       alert(`Not enough stock! Only ${product.cartons} cartons available.`);
@@ -41,16 +48,19 @@ export default function BillingPage() {
 
     // Check if already in cart
     const existingIndex = cart.findIndex(item => item.product.id === product.id);
-    
+
     if (existingIndex >= 0) {
-      const newCart = [...cart];
-      const newTotalQty = newCart[existingIndex].qty + qty;
+      const newTotalQty = cart[existingIndex].qty + qty;
       if (newTotalQty > product.cartons) {
         alert(`Not enough stock! Only ${product.cartons} cartons available.`);
         return;
       }
-      newCart[existingIndex].qty = newTotalQty;
-      newCart[existingIndex].amount = newTotalQty * product.boxesPerCarton * product.sellPrice;
+      const newCart = [...cart];
+      newCart[existingIndex] = {
+        ...newCart[existingIndex],
+        qty: newTotalQty,
+        amount: newTotalQty * product.boxesPerCarton * product.sellPrice
+      };
       setCart(newCart);
     } else {
       setCart([...cart, {
@@ -95,19 +105,24 @@ export default function BillingPage() {
     localStorage.setItem('stock_management_products', JSON.stringify(updatedProducts));
 
     // Calculate total
-    const grandTotal = cart.reduce((sum, item) => sum + item.amount, 0);
+    const total = cart.reduce((sum, item) => sum + item.amount, 0);
 
     // Create Bill Object
     const bill = {
       id: `INV-${Date.now()}`,
-      date: new Date().toLocaleString(),
+      date: new Date().toLocaleString('en-IN'),
       customerName,
       items: [...cart],
-      grandTotal
+      grandTotal: total
     };
 
-    // Save Bill to History (Optional, but good practice)
-    const savedBills = JSON.parse(localStorage.getItem('stock_management_bills') || '[]');
+    // Save Bill to History
+    let savedBills = [];
+    try {
+      savedBills = JSON.parse(localStorage.getItem('stock_management_bills') || '[]');
+    } catch (e) {
+      console.error("Error parsing bills", e);
+    }
     localStorage.setItem('stock_management_bills', JSON.stringify([bill, ...savedBills]));
 
     setGeneratedBill(bill);
@@ -133,116 +148,149 @@ export default function BillingPage() {
 
   const grandTotal = cart.reduce((sum, item) => sum + item.amount, 0);
 
+  // Print stays black on white, whatever the screen theme is
+  const printStyles = (
+    <style dangerouslySetInnerHTML={{
+      __html: `
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        .print-area, .print-area * {
+          visibility: visible;
+          color: #000 !important;
+          background: transparent !important;
+          border-color: #999 !important;
+          box-shadow: none !important;
+        }
+        .print-area {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+        }
+        .print\\:hidden {
+          display: none !important;
+        }
+      }
+    `}} />
+  );
+
   // === RENDER BILL RECEIPT VIEW ===
   if (generatedBill) {
     return (
-      <div className="max-w-2xl mx-auto bg-white p-4 md:p-8 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8 print:hidden">
-          <button 
-            onClick={resetBilling}
-            className="flex items-center gap-2 text-slate-600 hover:text-black font-bold transition-colors"
-          >
-            <ArrowLeft size={20} /> New Bill
-          </button>
-          <button 
-            onClick={handlePrint}
-            className="flex items-center justify-center w-full sm:w-auto gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-3 rounded-lg font-bold shadow-sm"
-          >
-            <Printer size={20} /> Print Receipt
-          </button>
-        </div>
-
-        {/* Printable Area */}
-        <div className="print-area text-black">
-          <div className="text-center mb-8 border-b border-slate-300 pb-6">
-            <h1 className="text-3xl font-black tracking-tight uppercase">Stock<span className="text-emerald-600">Management</span></h1>
-            <p className="text-slate-600 mt-1 font-bold text-sm tracking-widest uppercase">Wholesale Invoice</p>
+      <div className="min-h-screen bg-stone-950 p-4 text-stone-300 sm:p-6">
+        <div className="mx-auto max-w-2xl rounded-xl border border-stone-800 bg-stone-900 p-4 md:p-8">
+          <div className="mb-8 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center print:hidden">
+            <button
+              onClick={resetBilling}
+              className="flex items-center gap-2 font-medium text-stone-400 transition-colors hover:text-stone-100"
+            >
+              <ArrowLeft size={20} /> New bill
+            </button>
+            <button
+              onClick={handlePrint}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-amber-400 px-4 py-3 font-semibold text-stone-950 transition-colors hover:bg-amber-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-900 sm:w-auto"
+            >
+              <Printer size={20} /> Print receipt
+            </button>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-between mb-8 text-sm gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <div>
-              <p className="text-slate-500 font-bold uppercase text-xs tracking-wider mb-1">Billed To</p>
-              <p className="font-black text-xl text-black">{generatedBill.customerName}</p>
+          {/* Printable Area */}
+          <div className="print-area">
+            <div className="mb-8 border-b border-stone-800 pb-6 text-center">
+              <h1 className="text-3xl font-bold tracking-tight text-stone-50">
+                Stock<span className="text-amber-400">Management</span>
+              </h1>
+              <p className="mt-1 text-sm font-medium text-stone-500">Wholesale invoice</p>
             </div>
-            <div className="sm:text-right">
-              <p className="text-slate-500 font-bold text-sm mb-1">INV-NO: <span className="font-black text-black">{generatedBill.id}</span></p>
-              <p className="text-slate-500 font-bold text-sm">DATE: <span className="font-black text-black">{generatedBill.date}</span></p>
-            </div>
-          </div>
 
-          {/* Items List (Mobile Friendly) */}
-          <div className="mb-8 border border-slate-200 rounded-xl overflow-hidden">
-            <div className="bg-slate-100 p-3 border-b border-slate-300 flex justify-between">
-              <span className="font-bold text-black uppercase text-sm tracking-wider">Items Summary</span>
-            </div>
-            
-            <div className="flex flex-col divide-y divide-slate-200">
-              {generatedBill.items.map((item, idx) => (
-                <div key={idx} className="p-4 flex flex-col gap-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-black text-lg text-black">{item.product.name}</p>
-                      <p className="text-xs text-slate-600 font-bold bg-slate-100 inline-block px-2 py-1 rounded mt-1">{item.product.boxesPerCarton} boxes / carton</p>
-                    </div>
-                    <p className="font-black text-lg text-emerald-700">{formatCurrency(item.amount)}</p>
-                  </div>
-                  
-                  <div className="flex justify-between items-center text-sm bg-slate-50 p-2 rounded-lg border border-slate-100">
-                    <div className="flex flex-col">
-                      <span className="text-slate-500 font-bold text-xs uppercase">Qty (Cartons)</span>
-                      <span className="font-black text-black">{item.qty}</span>
-                    </div>
-                    <div className="h-8 w-px bg-slate-300"></div>
-                    <div className="flex flex-col items-end">
-                      <span className="text-slate-500 font-bold text-xs uppercase">Rate / Carton</span>
-                      <span className="font-black text-black">{formatCurrency(item.ratePerCarton)}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <div className="w-full sm:w-1/2 bg-slate-50 p-4 rounded-xl border-2 border-black">
-              <div className="flex justify-between items-center">
-                <span className="font-black text-xl text-black uppercase">Grand Total</span>
-                <span className="font-black text-2xl text-emerald-700">{formatCurrency(generatedBill.grandTotal)}</span>
+            <div className="mb-8 flex flex-col justify-between gap-4 rounded-xl border border-stone-800 bg-stone-950/60 p-4 text-sm sm:flex-row">
+              <div>
+                <p className="mb-1 text-xs font-medium text-stone-500">Billed to</p>
+                <p className="text-xl font-semibold text-stone-50">{generatedBill.customerName}</p>
+              </div>
+              <div className="sm:text-right">
+                <p className="mb-1 text-sm text-stone-500">Invoice no: <span className="font-semibold text-stone-100">{generatedBill.id}</span></p>
+                <p className="text-sm text-stone-500">Date: <span className="font-semibold text-stone-100">{generatedBill.date}</span></p>
               </div>
             </div>
-          </div>
-          
-          <div className="text-center mt-12 text-slate-500 font-bold text-sm">
-            <p>Thank you for your business!</p>
+
+            {/* Items */}
+            <div className="mb-8 overflow-hidden rounded-xl border border-stone-800">
+              <div className="border-b border-stone-800 bg-stone-950/50 p-3">
+                <span className="text-sm font-medium text-stone-400">Items summary</span>
+              </div>
+
+              <div className="flex flex-col divide-y divide-stone-800">
+                {generatedBill.items.map((item, idx) => (
+                  <div key={idx} className="flex flex-col gap-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-semibold text-stone-50">{item.product.name}</p>
+                        <p className="mt-1 inline-block rounded bg-stone-800 px-2 py-1 text-xs font-medium text-stone-400">{item.product.boxesPerCarton} boxes / carton</p>
+                      </div>
+                      <p className="text-lg font-semibold text-amber-300 tabular-nums">{formatCurrency(item.amount)}</p>
+                    </div>
+
+                    <div className="flex items-center justify-between rounded-lg border border-stone-800 bg-stone-950/60 p-3 text-sm">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-stone-500">Qty (cartons)</span>
+                        <span className="font-semibold text-stone-100 tabular-nums">{item.qty}</span>
+                      </div>
+                      <div className="h-8 w-px bg-stone-800"></div>
+                      <div className="flex flex-col items-end">
+                        <span className="text-xs font-medium text-stone-500">Rate / carton</span>
+                        <span className="font-semibold text-stone-100 tabular-nums">{formatCurrency(item.ratePerCarton)}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <div className="w-full rounded-xl border border-amber-400/40 bg-amber-400/5 p-4 sm:w-1/2">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-lg font-semibold text-stone-100">Grand total</span>
+                  <span className="text-2xl font-bold text-amber-300 tabular-nums">{formatCurrency(generatedBill.grandTotal)}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-12 text-center text-sm text-stone-500">
+              <p>Thank you for your business!</p>
+            </div>
           </div>
         </div>
+        {printStyles}
       </div>
     );
   }
 
   // === RENDER BILLING INTERFACE ===
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen space-y-6 bg-stone-950 p-4 text-stone-300 sm:p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black text-black tracking-tight">Billing & Sales</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-stone-50">Billing and sales</h1>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        
-        {/* Left Side: Product Selection Form */}
-        <div className="xl:col-span-1 bg-white p-4 md:p-6 rounded-xl shadow-sm border border-slate-200 h-fit space-y-5">
-          <h2 className="text-lg font-black text-black mb-2 border-b border-slate-200 pb-3 uppercase tracking-wider">Add Items</h2>
-          
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+
+        {/* Left: add items */}
+        <div className="h-fit space-y-5 rounded-xl border border-stone-800 bg-stone-900 p-4 md:p-6 xl:col-span-1">
+          <h2 className="border-b border-stone-800 pb-3 text-lg font-semibold text-stone-50">Add items</h2>
+
           <div>
-            <label className="block text-sm font-bold text-black mb-2">Select Product</label>
-            <select 
+            <label className="mb-2 block text-sm font-medium text-stone-400">Select product</label>
+            <select
               value={selectedProductId}
               onChange={(e) => setSelectedProductId(e.target.value)}
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-black bg-slate-50"
+              className={inputClass}
             >
-              <option value="">-- Select Product --</option>
+              <option value="">Select a product</option>
               {products.map(p => (
-                <option key={p.id} value={p.id} disabled={p.cartons <= 0} className="text-black font-bold">
+                <option key={p.id} value={p.id} disabled={p.cartons <= 0}>
                   {p.name} ({p.cartons} cartons left)
                 </option>
               ))}
@@ -250,77 +298,79 @@ export default function BillingPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-black mb-2">Quantity (Cartons)</label>
-            <input 
-              type="number" 
+            <label className="mb-2 block text-sm font-medium text-stone-400">Quantity (cartons)</label>
+            <input
+              type="number"
               value={sellCartons}
               onChange={(e) => setSellCartons(e.target.value)}
               placeholder="Enter quantity"
               min="1"
-              className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-black bg-slate-50"
+              className={inputClass}
             />
           </div>
 
-          <button 
+          <button
             onClick={handleAddToCart}
-            className="w-full flex items-center justify-center gap-2 bg-black text-white hover:bg-slate-800 py-3 md:py-4 rounded-xl font-black transition-colors shadow-md text-lg"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-400 py-3 text-lg font-semibold text-stone-950 transition-colors hover:bg-amber-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-900 md:py-4"
           >
-            <Plus size={24} /> Add to Bill
+            <Plus size={24} /> Add to bill
           </button>
         </div>
 
-        {/* Right Side: Current Bill / Cart */}
-        <div className="xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full min-h-[500px]">
-          <div className="p-4 md:p-6 border-b border-slate-200 bg-slate-100 rounded-t-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-            <h2 className="text-lg font-black text-black flex items-center gap-2 uppercase tracking-wider">
-              <Receipt size={24} className="text-emerald-700"/> Current Invoice
+        {/* Right: current invoice */}
+        <div className="flex h-full min-h-[500px] flex-col rounded-xl border border-stone-800 bg-stone-900 xl:col-span-2">
+          <div className="flex flex-col items-start justify-between gap-4 rounded-t-xl border-b border-stone-800 bg-stone-950/50 p-4 sm:flex-row sm:items-center md:p-6">
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-stone-50">
+              <Receipt size={24} className="text-amber-400" /> Current invoice
             </h2>
             <div className="w-full sm:w-72">
-              <input 
-                type="text" 
-                placeholder="Enter Customer Name"
+              <input
+                type="text"
+                placeholder="Customer name"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-black placeholder:text-slate-400 placeholder:font-medium bg-white"
+                className={inputClass}
               />
             </div>
           </div>
 
-          <div className="flex-1 p-4 md:p-6 bg-slate-50">
+          <div className="flex-1 p-4 md:p-6">
             {cart.length === 0 ? (
-              <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-slate-400 bg-white rounded-xl border border-dashed border-slate-300 p-6">
-                <ShoppingCart size={64} className="mb-4 opacity-30 text-slate-500" />
-                <p className="font-bold text-slate-500 text-center text-lg">Cart is empty.<br/><span className="font-medium text-sm">Add products from the left panel.</span></p>
+              <div className="flex h-full min-h-[300px] flex-col items-center justify-center rounded-xl border border-dashed border-stone-800 p-6 text-center">
+                <ShoppingCart size={56} className="mb-4 text-stone-700" />
+                <p className="text-lg font-medium text-stone-400">Your bill is empty</p>
+                <p className="mt-1 text-sm text-stone-500">Pick a product on the left and add it to the bill.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 {cart.map((item, idx) => (
-                  <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm flex flex-col gap-3 relative">
-                    <button 
-                      onClick={() => handleRemoveFromCart(idx)} 
-                      className="absolute -top-3 -right-3 text-white bg-red-500 hover:bg-red-600 p-2 rounded-full shadow-md transition-colors"
+                  <div key={idx} className="relative flex flex-col gap-3 rounded-xl border border-stone-800 bg-stone-950/40 p-4">
+                    <button
+                      onClick={() => handleRemoveFromCart(idx)}
+                      aria-label={`Remove ${item.product.name}`}
+                      className="absolute -right-3 -top-3 rounded-full bg-red-500 p-2 text-white shadow-md transition-colors hover:bg-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                     >
                       <Trash2 size={16} />
                     </button>
-                    
-                    <div className="flex justify-between items-start pr-4">
+
+                    <div className="flex items-start justify-between pr-4">
                       <div className="flex flex-col">
-                        <span className="font-black text-lg text-black leading-tight">{item.product.name}</span>
-                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded w-fit mt-1">{item.product.boxesPerCarton} boxes/carton</span>
+                        <span className="text-lg font-semibold leading-tight text-stone-50">{item.product.name}</span>
+                        <span className="mt-1 w-fit rounded bg-stone-800 px-2 py-1 text-xs font-medium text-stone-400">{item.product.boxesPerCarton} boxes/carton</span>
                       </div>
                       <div className="text-right">
-                        <span className="font-black text-xl text-emerald-700">{formatCurrency(item.amount)}</span>
+                        <span className="text-xl font-semibold text-amber-300 tabular-nums">{formatCurrency(item.amount)}</span>
                       </div>
                     </div>
 
-                    <div className="flex justify-between items-center bg-slate-50 border border-slate-100 rounded-lg p-3 mt-2">
+                    <div className="mt-1 flex items-center justify-between rounded-lg border border-stone-800 bg-stone-900 p-3">
                       <div className="flex flex-col items-start">
-                        <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1">Cartons</span>
-                        <span className="font-black text-xl text-black">{item.qty}</span>
+                        <span className="mb-1 text-xs font-medium text-stone-500">Cartons</span>
+                        <span className="text-xl font-semibold text-stone-100 tabular-nums">{item.qty}</span>
                       </div>
                       <div className="flex flex-col items-end">
-                        <span className="text-[10px] uppercase font-black tracking-widest text-slate-400 mb-1">Rate</span>
-                        <span className="font-black text-lg text-black">{formatCurrency(item.ratePerCarton)}</span>
+                        <span className="mb-1 text-xs font-medium text-stone-500">Rate</span>
+                        <span className="text-lg font-semibold text-stone-100 tabular-nums">{formatCurrency(item.ratePerCarton)}</span>
                       </div>
                     </div>
                   </div>
@@ -329,47 +379,28 @@ export default function BillingPage() {
             )}
           </div>
 
-          {/* Grand Total Footer */}
-          <div className="p-4 md:p-6 border-t border-slate-200 bg-white rounded-b-xl flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex flex-col w-full sm:w-auto items-center sm:items-start p-4 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-slate-500 font-black text-sm uppercase tracking-wider mb-1">Grand Total</span>
-              <span className="text-3xl md:text-4xl font-black text-black">{formatCurrency(grandTotal)}</span>
+          {/* Total footer */}
+          <div className="flex flex-col items-center justify-between gap-4 rounded-b-xl border-t border-stone-800 p-4 sm:flex-row md:p-6">
+            <div className="flex w-full flex-col items-center rounded-xl border border-stone-800 bg-stone-950/60 p-4 sm:w-auto sm:items-start">
+              <span className="mb-1 text-sm font-medium text-stone-500">Grand total</span>
+              <span className="text-3xl font-bold text-amber-300 tabular-nums md:text-4xl">{formatCurrency(grandTotal)}</span>
             </div>
-            
-            <button 
+
+            <button
               onClick={handleGenerateBill}
               disabled={cart.length === 0}
-              className={`w-full sm:w-auto px-8 py-4 rounded-xl font-black text-lg transition-all shadow-md ${
-                cart.length > 0 
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-              }`}
+              className={`w-full rounded-xl px-8 py-4 text-lg font-semibold transition-colors sm:w-auto ${cart.length > 0
+                  ? 'bg-emerald-500 text-stone-950 hover:bg-emerald-400'
+                  : 'cursor-not-allowed bg-stone-800 text-stone-600'
+                }`}
             >
-              GENERATE BILL
+              Generate bill
             </button>
           </div>
         </div>
       </div>
-      
-      <style dangerouslySetInnerHTML={{__html: `
-        @media print {
-          body * {
-            visibility: hidden;
-          }
-          .print-area, .print-area * {
-            visibility: visible;
-          }
-          .print-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-          }
-          .print\\:hidden {
-            display: none !important;
-          }
-        }
-      `}} />
+
+      {printStyles}
     </div>
   );
 }

@@ -5,13 +5,13 @@ import { Menu } from "lucide-react";
 
 const Navbar = ({ toggleSidebar }) => {
   return (
-    <nav className="bg-emerald-800 text-white shadow-md w-full">
+    <nav className="bg-slate-900 text-white border-b border-slate-800 w-full shadow-sm">
       <div className="px-4 md:px-6 py-4 flex items-center justify-between">
         
         <div className="flex items-center gap-4 relative z-50">
           {/* Hamburger Menu for Mobile */}
           <div 
-            className="md:hidden p-2 bg-emerald-700 hover:bg-emerald-600 rounded cursor-pointer"
+            className="md:hidden p-2 bg-slate-800 hover:bg-slate-700 rounded cursor-pointer"
             onClick={() => toggleSidebar()}
             onTouchEnd={(e) => {
               e.preventDefault();
