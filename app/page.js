@@ -6,7 +6,6 @@ import Link from 'next/link';
 
 const LOW_STOCK_LIMIT = 10;
 
-// One strip of four figures, separated by dividers instead of four separate cards
 const StatItem = ({ title, value, icon, iconClass, subtitle }) => (
   <div className="flex flex-col gap-3 p-6">
     <div className="flex items-center gap-3">
@@ -48,10 +47,10 @@ const Page = () => {
     setIsMounted(true);
     setCurrentDate(new Date().toLocaleDateString('en-IN'));
 
-    const savedProducts = typeof window !== 'undefined' ? localStorage.getItem('stock_management_products') : null;
+    try {
+      const savedProducts = typeof window !== 'undefined' ? localStorage.getItem('stock_management_products') : null;
 
-    if (savedProducts) {
-      try {
+      if (savedProducts) {
         const products = JSON.parse(savedProducts);
 
         let cartons = 0;
@@ -67,7 +66,6 @@ const Page = () => {
           if (currentCartons === 0) outOfStock++;
           else if (currentCartons < LOW_STOCK_LIMIT) lowStock++;
 
-          // buyPrice and sellPrice are per box
           const totalBoxes = currentCartons * parseInt(p.boxesPerCarton || 0);
           investment += totalBoxes * parseFloat(p.buyPrice || 0);
           expectedSales += totalBoxes * parseFloat(p.sellPrice || 0);
@@ -84,9 +82,9 @@ const Page = () => {
         });
 
         setRecentProducts(products.slice(0, 5));
-      } catch (e) {
-        console.error("Error calculating stats", e);
       }
+    } catch (e) {
+      console.error("Error calculating stats", e);
     }
   }, []);
 
@@ -98,8 +96,7 @@ const Page = () => {
     }).format(value);
   };
 
-  // Prevent hydration mismatch by not rendering content until mounted
-  if (!isMounted) return null;
+  // if (!isMounted) return null;
 
   const marginPercent = stats.totalExpectedSales > 0
     ? Math.round((stats.totalExpectedProfit / stats.totalExpectedSales) * 100)
@@ -109,7 +106,7 @@ const Page = () => {
     : 0;
 
   return (
-    <div className="min-h-screen space-y-6 bg-stone-950 p-4 text-stone-300 sm:p-6">
+    <div className="w-full space-y-6 bg-stone-950 p-4 text-stone-300 sm:p-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold tracking-tight text-stone-50">Stock dashboard</h1>
@@ -223,7 +220,6 @@ const Page = () => {
                 {formatCurrency(stats.totalExpectedProfit)}
               </p>
 
-              {/* Cost vs profit share of expected revenue */}
               <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-stone-800">
                 <div className="bg-stone-500" style={{ width: `${costShare}%` }} />
                 <div className="bg-amber-400" style={{ width: `${Math.max(0, 100 - costShare)}%` }} />
@@ -239,7 +235,7 @@ const Page = () => {
             <div className="relative z-10">
               <h3 className="mb-1 text-lg font-semibold text-stone-50">New sale</h3>
               <p className="mb-4 text-sm text-stone-400">Create a bill for a customer order.</p>
-              <Link href="/billing" className="inline-flex items-center gap-2 rounded-lg bg-amber-400 px-4 py-2 font-semibold text-stone-950 transition-colors hover:bg-amber-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-stone-900">
+              <Link href="/billing" className="inline-flex items-center gap-2 rounded-lg bg-amber-400 px-4 py-2 font-semibold text-stone-950 transition-colors hover:bg-amber-300 focus:outline-none">
                 Create bill <ArrowRight size={16} />
               </Link>
             </div>

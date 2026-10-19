@@ -17,13 +17,20 @@ export const metadata = {
   description: "Manage your stock and inventory",
 };
 
+// Mobile screens scaling ke liye compulsory hai
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+};
+
 export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body className="bg-slate-950 text-slate-100 min-h-screen">
         <ClientLayout>{children}</ClientLayout>
       </body>
     </html>
